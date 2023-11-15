@@ -1,0 +1,280 @@
+diff --git a/crs-setup.conf.example b/crs-setup.conf.example
+index b443e77..0fdd5cb 100644
+--- a/crs-setup.conf.example
++++ b/crs-setup.conf.example
+@@ -234,7 +234,7 @@ SecDefaultAction "phase:2,log,auditlog,pass"
+ 
+ 
+ #
+-# -- [[ Anomaly Mode Severity Levels ]] ----------------------------------------
++# -- [[ Anomaly Scoring Mode Severity Levels ]] --------------------------------
+ #
+ # Each rule in the CRS has an associated severity level.
+ # These are the default scoring points for each severity level.
+@@ -270,7 +270,7 @@ SecDefaultAction "phase:2,log,auditlog,pass"
+ 
+ 
+ #
+-# -- [[ Anomaly Mode Blocking Threshold Levels ]] ------------------------------
++# -- [[ Anomaly Scoring Mode Blocking Threshold Levels ]] ----------------------
+ #
+ # Here, you can specify at which cumulative anomaly score an inbound request,
+ # or outbound response, gets blocked.
+@@ -319,6 +319,35 @@ SecDefaultAction "phase:2,log,auditlog,pass"
+ #  setvar:tx.outbound_anomaly_score_threshold=4"
+ 
+ #
++# -- [[ Early Anomaly Scoring Mode Blocking ]] ------------------------------
++#
++# The anomaly scores for the request and the responses are generally summed up
++# and evaluated at the end of phase:2 and at the end of phase:4 respectively.
++# However, it is possible to enable an early evaluation of these anomaly scores
++# at the end of phase:1 and at the end of phase:3.
++#
++# If a request (or a response) hits the anomaly threshold in this early
++# evaluation, then blocking happens immediately (if blocking is enabled) and
++# the phase 2 (and phase 4 respectively) will no longer be executed.
++#
++# Enable the rule 900120 that sets the variable tx.blocking_early to 1 in order
++# to enable early blocking. The variable tx.blocking_early is set to 0 by
++# default. Early blocking is thus disabled by default.
++#
++# Please note that blocking early will hide potential alerts from you. This 
++# means that a payload that would appear in an alert in phase 2 (or phase 4)
++# does not get evaluated if the request is being blocked early. So when you 
++# disabled blocking early again at some point in the future, then new alerts 
++# from phase 2 might pop up.
++#SecAction \
++#  "id:900120,\
++#  phase:1,\
++#  nolog,\
++#  pass,\
++#  t:none,\
++#  setvar:tx.blocking_early=1"
++
++
+ # -- [[ Application Specific Rule Exclusions ]] ----------------------------------------
+ #
+ # Some well-known applications may undertake actions that appear to be
+diff --git a/rules/REQUEST-901-INITIALIZATION.conf b/rules/REQUEST-901-INITIALIZATION.conf
+index 5044abd..06a1bb3 100644
+--- a/rules/REQUEST-901-INITIALIZATION.conf
++++ b/rules/REQUEST-901-INITIALIZATION.conf
+@@ -89,6 +89,15 @@ SecRule &TX:outbound_anomaly_score_threshold "@eq 0" \
+     ver:'OWASP_CRS/3.3.4',\
+     setvar:'tx.outbound_anomaly_score_threshold=4'"
+ 
++# Default Blocking Early (rule 900120 in setup.conf)
++SecRule &TX:blocking_early "@eq 0" \
++    "id:901115,\
++    phase:1,\
++    pass,\
++    nolog,\
++    ver:'OWASP_CRS/3.3.0',\
++    setvar:'tx.blocking_early=0'"
++
+ # Default Paranoia Level (rule 900000 in setup.conf)
+ SecRule &TX:paranoia_level "@eq 0" \
+     "id:901120,\
+diff --git a/rules/REQUEST-949-BLOCKING-EVALUATION.conf b/rules/REQUEST-949-BLOCKING-EVALUATION.conf
+index 050eb04..755315f 100644
+--- a/rules/REQUEST-949-BLOCKING-EVALUATION.conf
++++ b/rules/REQUEST-949-BLOCKING-EVALUATION.conf
+@@ -12,7 +12,66 @@
+ # -= Paranoia Level 0 (empty) =- (apply unconditionally)
+ #
+ 
+-# Summing up the anomaly score.
++# Skipping early blocking
++
++SecRule TX:BLOCKING_EARLY "!@eq 1" \
++    "id:949050,\
++    phase:1,\
++    pass,\
++    t:none,\
++    nolog,\
++    skipAfter:BLOCKING_EARLY_ANOMALY_SCORING"
++
++SecRule TX:BLOCKING_EARLY "!@eq 1" \
++    "id:949051,\
++    phase:2,\
++    pass,\
++    t:none,\
++    nolog,\
++    skipAfter:BLOCKING_EARLY_ANOMALY_SCORING"
++
++# Summing up the anomaly score for early blocking
++
++SecRule TX:PARANOIA_LEVEL "@ge 1" \
++    "id:949052,\
++    phase:1,\
++    pass,\
++    t:none,\
++    nolog,\
++    setvar:'tx.anomaly_score=+%{tx.anomaly_score_pl1}'"
++
++SecRule TX:PARANOIA_LEVEL "@ge 2" \
++    "id:949053,\
++    phase:1,\
++    pass,\
++    t:none,\
++    nolog,\
++    setvar:'tx.anomaly_score=+%{tx.anomaly_score_pl2}'"
++
++SecRule TX:PARANOIA_LEVEL "@ge 3" \
++    "id:949054,\
++    phase:1,\
++    pass,\
++    t:none,\
++    nolog,\
++    setvar:'tx.anomaly_score=+%{tx.anomaly_score_pl3}'"
++
++SecRule TX:PARANOIA_LEVEL "@ge 4" \
++    "id:949055,\
++    phase:1,\
++    pass,\
++    t:none,\
++    nolog,\
++    setvar:'tx.anomaly_score=+%{tx.anomaly_score_pl4}'"
++
++SecAction "id:949059,\
++    phase:2,\
++    pass,\
++    t:none,\
++    nolog,\
++    setvar:'tx.anomaly_score=0'"
++
++SecMarker BLOCKING_EARLY_ANOMALY_SCORING
+ 
+ # NOTE: tx.anomaly_score should not be set initially, but masking would lead to difficult bugs.
+ # So we add to it.
+@@ -93,6 +152,21 @@ SecRule TX:ANOMALY_SCORE "@ge %{tx.inbound_anomaly_score_threshold}" \
+     severity:'CRITICAL',\
+     setvar:'tx.inbound_anomaly_score=%{tx.anomaly_score}'"
+ 
++SecRule TX:BLOCKING_EARLY "@eq 1" \
++    "id:949111,\
++    phase:1,\
++    deny,\
++    t:none,\
++    msg:'Inbound Anomaly Score Exceeded in phase 1 (Total Score: %{TX.ANOMALY_SCORE})',\
++    tag:'application-multi',\
++    tag:'language-multi',\
++    tag:'platform-multi',\
++    tag:'attack-generic',\
++    ver:'OWASP_CRS/3.3.0',\
++    severity:'CRITICAL',\
++    chain"
++    SecRule TX:ANOMALY_SCORE "@ge %{tx.inbound_anomaly_score_threshold}" \
++        "setvar:'tx.inbound_anomaly_score=%{tx.anomaly_score}'"
+ 
+ 
+ SecRule TX:EXECUTING_PARANOIA_LEVEL "@lt 1" "id:949011,phase:1,pass,nolog,skipAfter:END-REQUEST-949-BLOCKING-EVALUATION"
+diff --git a/rules/RESPONSE-950-DATA-LEAKAGES.conf b/rules/RESPONSE-950-DATA-LEAKAGES.conf
+index 13013de..bf9b03d 100644
+--- a/rules/RESPONSE-950-DATA-LEAKAGES.conf
++++ b/rules/RESPONSE-950-DATA-LEAKAGES.conf
+@@ -96,7 +96,7 @@ SecRule TX:EXECUTING_PARANOIA_LEVEL "@lt 2" "id:950014,phase:4,pass,nolog,skipAf
+ #
+ SecRule RESPONSE_STATUS "@rx ^5\d{2}$" \
+     "id:950100,\
+-    phase:4,\
++    phase:3,\
+     block,\
+     capture,\
+     t:none,\
+diff --git a/rules/RESPONSE-959-BLOCKING-EVALUATION.conf b/rules/RESPONSE-959-BLOCKING-EVALUATION.conf
+index 24130eb..549c07c 100644
+--- a/rules/RESPONSE-959-BLOCKING-EVALUATION.conf
++++ b/rules/RESPONSE-959-BLOCKING-EVALUATION.conf
+@@ -22,7 +22,67 @@
+ # -= Paranoia Level 0 (empty) =- (apply unconditionally)
+ #
+ 
+-# Summing up the anomaly score.
++
++# Skipping early blocking
++
++SecRule TX:BLOCKING_EARLY "!@eq 1" \
++    "id:959050,\
++    phase:3,\
++    pass,\
++    t:none,\
++    nolog,\
++    skipAfter:BLOCKING_EARLY_ANOMALY_SCORING"
++
++SecRule TX:BLOCKING_EARLY "!@eq 1" \
++    "id:959051,\
++    phase:4,\
++    pass,\
++    t:none,\
++    nolog,\
++    skipAfter:BLOCKING_EARLY_ANOMALY_SCORING"
++
++# Summing up the anomaly score for early blocking
++
++SecRule TX:PARANOIA_LEVEL "@ge 1" \
++    "id:959052,\
++    phase:3,\
++    pass,\
++    t:none,\
++    nolog,\
++    setvar:'tx.outbound_anomaly_score=+%{tx.anomaly_score_pl1}'"
++
++SecRule TX:PARANOIA_LEVEL "@ge 2" \
++    "id:959053,\
++    phase:3,\
++    pass,\
++    t:none,\
++    nolog,\
++    setvar:'tx.outbound_anomaly_score=+%{tx.anomaly_score_pl2}'"
++
++SecRule TX:PARANOIA_LEVEL "@ge 3" \
++    "id:959054,\
++    phase:3,\
++    pass,\
++    t:none,\
++    nolog,\
++    setvar:'tx.outbound_anomaly_score=+%{tx.anomaly_score_pl3}'"
++
++SecRule TX:PARANOIA_LEVEL "@ge 4" \
++    "id:959055,\
++    phase:3,\
++    pass,\
++    t:none,\
++    nolog,\
++    setvar:'tx.outbound_anomaly_score=+%{tx.anomaly_score_pl4}'"
++
++SecAction "id:959059,\
++    phase:4,\
++    pass,\
++    t:none,\
++    nolog,\
++    setvar:'tx.outbound_anomaly_score=0'"
++
++SecMarker BLOCKING_EARLY_ANOMALY_SCORING
+ 
+ # NOTE: tx.anomaly_score should not be set initially, but masking would lead to difficult bugs.
+ # So we add to it.
+@@ -76,6 +136,21 @@ SecRule TX:OUTBOUND_ANOMALY_SCORE "@ge %{tx.outbound_anomaly_score_threshold}" \
+     ver:'OWASP_CRS/3.3.4',\
+     setvar:'tx.anomaly_score=+%{tx.outbound_anomaly_score}'"
+ 
++SecRule TX:BLOCKING_EARLY "@eq 1" \
++    "id:959101,\
++    phase:3,\
++    deny,\
++    t:none,\
++    msg:'Outbound Anomaly Score Exceeded in phase 3 (Total Score: %{TX.OUTBOUND_ANOMALY_SCORE})',\
++    tag:'application-multi',\
++    tag:'language-multi',\
++    tag:'platform-multi',\
++    tag:'attack-generic',\
++    ver:'OWASP_CRS/3.3.0',\
++    severity:'CRITICAL',\
++    chain"
++    SecRule TX:OUTBOUND_ANOMALY_SCORE "@ge %{tx.outbound_anomaly_score_threshold}" \
++        "setvar:'tx.anomaly_score=%{tx.outbound_anomaly_score}'"
+ 
+ 
+ SecRule TX:EXECUTING_PARANOIA_LEVEL "@lt 1" "id:959011,phase:3,pass,nolog,skipAfter:END-RESPONSE-959-BLOCKING-EVALUATION"
