@@ -1,7 +1,7 @@
 Summary: ModSecurity Rules
 Name: mod_security_crs
 Version: 3.3.4
-Release: 1%{?dist}
+Release: 3%{?dist}
 License: ASL 2.0
 URL: https://www.owasp.org/index.php/Category:OWASP_ModSecurity_Core_Rule_Set_Project
 Group: System Environment/Daemons
@@ -10,6 +10,7 @@ BuildArch: noarch
 Requires: mod_security >= 2.8.0
 Obsoletes: mod_security_crs-extras < 3.0.0
 Patch0: mod_security_crs-early-blocking.patch
+Patch1: mod_security_crs-rule-941310-dont-match-japanese-word.patch
 
 %description
 This package provides the base rules for mod_security.
@@ -17,6 +18,7 @@ This package provides the base rules for mod_security.
 %prep
 %setup -q -n coreruleset-%{version}
 %patch0 -p1 -b.early_blocking
+%patch1 -p1 -b.rule_941310
 
 %build
 
@@ -48,6 +50,14 @@ done
 %{_datarootdir}/mod_modsecurity_crs
 
 %changelog
+* Tue Apr 04 2023 Richard Lescak <rlescak@redhat.com> - 3.3.4-3
+- bump release to enable build
+- Related: rhbz#2040257
+
+* Fri Mar 31 2023 Richard Lescak <rlescak@redhat.com> - 3.3.4-2
+- add chained regex for rule 941310 to not match japan word 'company'
+- Resolves: rhbz#2040257
+
 * Thu Dec 08 2022 Luboš Uhliarik <luhliari@redhat.com> - 3.3.4-1
 - new version 3.3.4
 - Resolves: #2141432 - [RFE] upgrade mod_security_crs to latest upstream 3.3.x
