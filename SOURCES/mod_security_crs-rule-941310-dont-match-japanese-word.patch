@@ -1,0 +1,16 @@
+--- a/rules/REQUEST-941-APPLICATION-ATTACK-XSS.conf	2020-07-01 18:38:19.000000000 +0200
++++ b/rules/REQUEST-941-APPLICATION-ATTACK-XSS.conf	2023-02-16 09:14:52.151838881 +0100
+@@ -543,8 +543,11 @@
+     ctl:auditLogParts=+E,\
+     ver:'OWASP_CRS/3.3.4',\
+     severity:'CRITICAL',\
+-    setvar:'tx.xss_score=+%{tx.critical_anomaly_score}',\
+-    setvar:'tx.anomaly_score_pl1=+%{tx.critical_anomaly_score}'"
++    chain"
++        SecRule REQUEST_COOKIES|!REQUEST_COOKIES:/__utm/|REQUEST_COOKIES_NAMES|ARGS_NAMES|ARGS|REQUEST_FILENAME|XML:/* "@rx [^\xe4]\xbc[^\x9a][^\xbe>]*[^\xe7][^\xa4][\xbe>]|<[^\xbe]*[^\xe7][^\xa4]\xbe" \
++        "t:none,t:lowercase,t:urlDecode,t:htmlEntityDecode,t:jsDecode,\
++        setvar:'tx.xss_score=+%{tx.critical_anomaly_score}',\
++        setvar:'tx.anomaly_score_pl1=+%{tx.critical_anomaly_score}'"
+ 
+ #
+ # https://nedbatchelder.com/blog/200704/xss_with_utf7.html

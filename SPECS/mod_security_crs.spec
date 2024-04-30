@@ -1,7 +1,7 @@
 Summary: ModSecurity Rules
 Name: mod_security_crs
 Version: 3.3.4
-Release: 1%{?dist}
+Release: 3%{?dist}
 License: ASL 2.0
 URL: https://www.owasp.org/index.php/Category:OWASP_ModSecurity_Core_Rule_Set_Project
 Source: https://github.com/coreruleset/coreruleset/archive/refs/tags/v%{version}.tar.gz
@@ -9,13 +9,19 @@ BuildArch: noarch
 Requires: mod_security >= 2.9.6
 Obsoletes: mod_security_crs-extras < 3.0.0
 Patch0: mod_security_crs-early-blocking.patch
+# https://issues.redhat.com/browse/RHEL-16358
+Patch1: mod_security_crs-rule-941310-dont-match-japanese-word.patch
+# https://issues.redhat.com/browse/RHEL-22733
+Patch2: mod_security_crs-rule-913100-req-scanner-detection.patch
 
 %description
 This package provides the base rules for mod_security.
 
 %prep
 %setup -q -n coreruleset-%{version}
-%patch0 -p1 -b.early_blocking
+%patch0 -p1 -b .early_blocking
+%patch1 -p1 -b .rule_941310
+%patch2 -p1 -b .rule_913100
 
 %build
 
@@ -48,6 +54,15 @@ done
 %{_datarootdir}/mod_modsecurity_crs
 
 %changelog
+* Fri Feb 09 2024 Luboš Uhliarik <luhliari@redhat.com> - 3.3.4-3
+- Resolves: #RHEL-22733 - mod_security_crs - The rule id:913100 in the
+  REQUEST-913-SCANNER-DETECTION.conf blocks requests  with "User-agent:
+  urlgrabber/3.10 yum/3.4.3"
+
+* Fri Feb 02 2024 Luboš Uhliarik <luhliari@redhat.com> - 3.3.4-2
+- Resolves: RHEL-16358 - A form data, "会社"(Company in Japanese) is forbade
+  with REQUEST-941-APPLICATION-ATTACK-XSS.conf of mod_security_crs
+
 * Mon Dec 05 2022 Luboš Uhliarik <luhliari@redhat.com> - 3.3.4-1
 - new version 3.3.4
 - Resolves: #2143210 - [RFE] upgrade mod_security_crs to latest upstream 3.3.x

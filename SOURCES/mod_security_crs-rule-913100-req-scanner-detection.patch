@@ -1,0 +1,29 @@
+diff --git a/rules/REQUEST-913-SCANNER-DETECTION.conf b/rules/REQUEST-913-SCANNER-DETECTION.conf
+index 2b21cef..335dad2 100644
+--- a/rules/REQUEST-913-SCANNER-DETECTION.conf
++++ b/rules/REQUEST-913-SCANNER-DETECTION.conf
+@@ -31,6 +31,7 @@ SecRule TX:EXECUTING_PARANOIA_LEVEL "@lt 1" "id:913012,phase:2,pass,nolog,skipAf
+ # 913101 - scripting/generic HTTP clients (data file scripting-user-agents.data)
+ # 913102 - web crawlers/bots (data file crawlers-user-agents.data)
+ #
++# Chained rule is doing whitelist for YUM package manager of CentOS / Fedore.
+ SecRule REQUEST_HEADERS:User-Agent "@pmFromFile scanners-user-agents.data" \
+     "id:913100,\
+     phase:2,\
+@@ -49,10 +50,12 @@ SecRule REQUEST_HEADERS:User-Agent "@pmFromFile scanners-user-agents.data" \
+     tag:'PCI/6.5.10',\
+     ver:'OWASP_CRS/3.3.4',\
+     severity:'CRITICAL',\
+-    setvar:'tx.anomaly_score_pl1=+%{tx.critical_anomaly_score}',\
+-    setvar:'ip.reput_block_flag=1',\
+-    setvar:'ip.reput_block_reason=%{rule.msg}',\
+-    expirevar:'ip.reput_block_flag=%{tx.reput_block_duration}'"
++    chain"
++    SecRule MATCHED_VARS "!@rx ^urlgrabber/[0-9\.]+ yum/[0-9\.]+$" \
++        "setvar:'tx.anomaly_score_pl1=+%{tx.critical_anomaly_score}',\
++        setvar:'ip.reput_block_flag=1',\
++        setvar:'ip.reput_block_reason=%{rule.msg}',\
++        expirevar:'ip.reput_block_flag=%{tx.reput_block_duration}'"
+ 
+ SecRule REQUEST_HEADERS_NAMES|REQUEST_HEADERS "@pmFromFile scanners-headers.data" \
+     "id:913110,\
