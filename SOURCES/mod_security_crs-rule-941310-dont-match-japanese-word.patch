@@ -1,8 +1,10 @@
---- a/rules/REQUEST-941-APPLICATION-ATTACK-XSS.conf	2020-07-01 18:38:19.000000000 +0200
-+++ b/rules/REQUEST-941-APPLICATION-ATTACK-XSS.conf	2023-02-16 09:14:52.151838881 +0100
-@@ -543,8 +543,11 @@
+diff --git a/rules/REQUEST-941-APPLICATION-ATTACK-XSS.conf b/rules/REQUEST-941-APPLICATION-ATTACK-XSS.conf
+index 3b2376b..504eb26 100644
+--- a/rules/REQUEST-941-APPLICATION-ATTACK-XSS.conf
++++ b/rules/REQUEST-941-APPLICATION-ATTACK-XSS.conf
+@@ -543,8 +543,11 @@ SecRule REQUEST_COOKIES|!REQUEST_COOKIES:/__utm/|REQUEST_COOKIES_NAMES|ARGS_NAME
      ctl:auditLogParts=+E,\
-     ver:'OWASP_CRS/3.3.4',\
+     ver:'OWASP_CRS/3.3.5',\
      severity:'CRITICAL',\
 -    setvar:'tx.xss_score=+%{tx.critical_anomaly_score}',\
 -    setvar:'tx.anomaly_score_pl1=+%{tx.critical_anomaly_score}'"

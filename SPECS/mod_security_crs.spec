@@ -1,7 +1,7 @@
 Summary: ModSecurity Rules
 Name: mod_security_crs
-Version: 3.3.4
-Release: 3%{?dist}
+Version: 3.3.5
+Release: 1%{?dist}
 License: ASL 2.0
 URL: https://www.owasp.org/index.php/Category:OWASP_ModSecurity_Core_Rule_Set_Project
 Source: https://github.com/coreruleset/coreruleset/archive/refs/tags/v%{version}.tar.gz
@@ -48,12 +48,15 @@ done
 
 %files
 %license LICENSE
-%doc CHANGES README.md
+%doc CHANGES.md README.md
 %config(noreplace) %{_sysconfdir}/httpd/modsecurity.d/activated_rules/*
 %config(noreplace) %{_sysconfdir}/httpd/modsecurity.d/crs-setup.conf
 %{_datarootdir}/mod_modsecurity_crs
 
 %changelog
+* Mon May 20 2024 Luboš Uhliarik <luhliari@redhat.com> - 3.3.5-1
+- Resolves: RHEL-32964 - new version 3.3.5
+
 * Fri Feb 09 2024 Luboš Uhliarik <luhliari@redhat.com> - 3.3.4-3
 - Resolves: #RHEL-22733 - mod_security_crs - The rule id:913100 in the
   REQUEST-913-SCANNER-DETECTION.conf blocks requests  with "User-agent:
