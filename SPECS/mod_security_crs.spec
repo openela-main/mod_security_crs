@@ -1,7 +1,7 @@
 Summary: ModSecurity Rules
 Name: mod_security_crs
 Version: 3.3.4
-Release: 3%{?dist}
+Release: 3%{?dist}.2
 License: ASL 2.0
 URL: https://www.owasp.org/index.php/Category:OWASP_ModSecurity_Core_Rule_Set_Project
 Group: System Environment/Daemons
@@ -50,6 +50,10 @@ done
 %{_datarootdir}/mod_modsecurity_crs
 
 %changelog
+* Wed Feb 19 2025 Luboš Uhliarik <luhliari@redhat.com> - 3.3.4-3.2
+- Resolves: RHEL-78711 - A form data, "鹿沼市御成橋"(a name of street/city
+  in Japanese) is forbade by mod_security_crs-3.3.4-3.el8.noarch
+
 * Tue Apr 04 2023 Richard Lescak <rlescak@redhat.com> - 3.3.4-3
 - bump release to enable build
 - Related: rhbz#2040257
